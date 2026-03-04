@@ -23,7 +23,6 @@ st.set_page_config(
 st.markdown("""
 <style>
     .stDownloadButton button { background-color: #636EFA; color: white; border-radius: 8px; }
-    .filter-box { background-color: #f8f9fa; padding: 10px; border-radius: 8px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -65,7 +64,6 @@ if df_raw.empty:
     st.warning("⚠️ No hay datos. Ejecuta el extractor y el loader primero.")
     st.stop()
 
-# ── Helper: agrupar por raza ──────────────────────────────────
 def agrupar_por_raza(df):
     return df.groupby('nombre_raza').agg(
         origen=('origen', 'first'),
@@ -78,15 +76,14 @@ def agrupar_por_raza(df):
         total_imagenes=('imagen_id', 'count')
     ).reset_index()
 
-# Valores globales para rangos de sliders
-vida_min_g = int(df_raw['vida_anos'].dropna().min())
-vida_max_g = int(df_raw['vida_anos'].dropna().max())
-peso_min_g = int(df_raw['peso_kg'].dropna().min())
-peso_max_g = int(df_raw['peso_kg'].dropna().max())
+vida_min_g  = int(df_raw['vida_anos'].dropna().min())
+vida_max_g  = int(df_raw['vida_anos'].dropna().max())
+peso_min_g  = int(df_raw['peso_kg'].dropna().min())
+peso_max_g  = int(df_raw['peso_kg'].dropna().max())
 razas_opts  = sorted(df_raw['nombre_raza'].dropna().unique())
 origen_opts = sorted(df_raw['origen'].dropna().unique())
 
-# ── KPIs generales ────────────────────────────────────────────
+# ── KPIs ──────────────────────────────────────────────────────
 st.markdown("### 📊 Resumen General")
 col1, col2, col3, col4, col5 = st.columns(5)
 with col1:
@@ -103,11 +100,10 @@ with col5:
 st.markdown("---")
 
 # ════════════════════════════════════════════════════════════
-# SECCIÓN 1: Comparativa de características por raza
+# SECCIÓN 1: Comparativa de características
 # ════════════════════════════════════════════════════════════
 st.markdown("### 🔀 Comparativa de Características por Raza")
-
-with st.expander("🔧 Filtros — Comparativa", expanded=True):
+with st.expander("🔧 Filtros", expanded=True):
     fc1, fc2, fc3 = st.columns(3)
     with fc1:
         s1_razas = st.multiselect("🐱 Razas:", options=razas_opts, default=[], key="s1_razas", placeholder="Todas...")
@@ -129,34 +125,29 @@ if df_s1_razas.empty:
 else:
     col1, col2 = st.columns(2)
     with col1:
-        fig = px.bar(
-            df_s1_razas.sort_values('nivel_energia', ascending=True),
-            x='nivel_energia', y='nombre_raza', orientation='h',
-            title="⚡ Nivel de Energía por Raza",
-            color='nivel_energia', color_continuous_scale='YlOrRd',
-            labels={'nivel_energia': 'Energía (1-5)', 'nombre_raza': 'Raza'}
-        )
+        fig = px.bar(df_s1_razas.sort_values('nivel_energia', ascending=True),
+                     x='nivel_energia', y='nombre_raza', orientation='h',
+                     title="⚡ Nivel de Energía por Raza",
+                     color='nivel_energia', color_continuous_scale='YlOrRd',
+                     labels={'nivel_energia': 'Energía (1-5)', 'nombre_raza': 'Raza'})
         fig.update_layout(showlegend=False, yaxis_title=None, height=500)
         st.plotly_chart(fig, use_container_width=True)
     with col2:
-        fig = px.bar(
-            df_s1_razas.sort_values('vida_anos', ascending=True),
-            x='vida_anos', y='nombre_raza', orientation='h',
-            title="📅 Longevidad por Raza",
-            color='vida_anos', color_continuous_scale='RdYlGn',
-            labels={'vida_anos': 'Años de vida', 'nombre_raza': 'Raza'}
-        )
+        fig = px.bar(df_s1_razas.sort_values('vida_anos', ascending=True),
+                     x='vida_anos', y='nombre_raza', orientation='h',
+                     title="📅 Longevidad por Raza",
+                     color='vida_anos', color_continuous_scale='RdYlGn',
+                     labels={'vida_anos': 'Años de vida', 'nombre_raza': 'Raza'})
         fig.update_layout(showlegend=False, yaxis_title=None, height=500)
         st.plotly_chart(fig, use_container_width=True)
 
 st.markdown("---")
 
 # ════════════════════════════════════════════════════════════
-# SECCIÓN 2: Energía vs Longevidad vs Peso
+# SECCIÓN 2: Dispersión
 # ════════════════════════════════════════════════════════════
 st.markdown("### 🔵 Energía vs Longevidad vs Peso")
-
-with st.expander("🔧 Filtros — Dispersión", expanded=True):
+with st.expander("🔧 Filtros", expanded=True):
     fs1, fs2, fs3, fs4 = st.columns(4)
     with fs1:
         s2_energia = st.slider("⚡ Energía:", 1, 5, (1, 5), key="s2_energia")
@@ -178,28 +169,24 @@ df_s2_razas = agrupar_por_raza(df_s2)
 if df_s2_razas.empty:
     st.warning("⚠️ Sin resultados para estos filtros.")
 else:
-    fig = px.scatter(
-        df_s2_razas,
-        x='nivel_energia', y='vida_anos',
-        size='peso_kg', color='nombre_raza',
-        hover_name='nombre_raza',
-        hover_data={'origen': True, 'inteligencia': True, 'social_humanos': True, 'total_imagenes': True},
-        title='Relación Energía — Longevidad — Peso por Raza',
-        labels={'nivel_energia': 'Nivel de Energía (1-5)', 'vida_anos': 'Vida Promedio (años)', 'peso_kg': 'Peso (kg)'},
-        size_max=40
-    )
+    fig = px.scatter(df_s2_razas, x='nivel_energia', y='vida_anos',
+                     size='peso_kg', color='nombre_raza',
+                     hover_name='nombre_raza',
+                     hover_data={'origen': True, 'inteligencia': True, 'social_humanos': True, 'total_imagenes': True},
+                     title='Relación Energía — Longevidad — Peso por Raza',
+                     labels={'nivel_energia': 'Nivel de Energía (1-5)', 'vida_anos': 'Vida Promedio (años)', 'peso_kg': 'Peso (kg)'},
+                     size_max=40)
     fig.update_layout(height=500)
     st.plotly_chart(fig, use_container_width=True)
-    st.info(f"📊 Mostrando **{df_s2_razas.shape[0]} razas** con los filtros aplicados")
+    st.info(f"📊 Mostrando **{df_s2_razas.shape[0]} razas**")
 
 st.markdown("---")
 
 # ════════════════════════════════════════════════════════════
-# SECCIÓN 3: Comparador directo de razas
+# SECCIÓN 3: Comparador directo
 # ════════════════════════════════════════════════════════════
 st.markdown("### ⚖️ Comparador Directo de Razas")
-
-with st.expander("🔧 Filtros — Comparador", expanded=True):
+with st.expander("🔧 Filtros", expanded=True):
     fd1, fd2 = st.columns(2)
     with fd1:
         s3_raza_a = st.selectbox("🐱 Raza A:", options=razas_opts, index=0, key="s3_raza_a")
@@ -207,51 +194,39 @@ with st.expander("🔧 Filtros — Comparador", expanded=True):
         s3_raza_b = st.selectbox("🐱 Raza B:", options=razas_opts, index=min(1, len(razas_opts)-1), key="s3_raza_b")
 
 df_s3_razas = agrupar_por_raza(df_raw)
+da     = df_s3_razas[df_s3_razas['nombre_raza'] == s3_raza_a]
+db_row = df_s3_razas[df_s3_razas['nombre_raza'] == s3_raza_b]
 
-if s3_raza_a and s3_raza_b:
-    da     = df_s3_razas[df_s3_razas['nombre_raza'] == s3_raza_a]
-    db_row = df_s3_razas[df_s3_razas['nombre_raza'] == s3_raza_b]
+if not da.empty and not db_row.empty:
+    da     = da.iloc[0]
+    db_row = db_row.iloc[0]
+    atributos = ['Energía', 'Inteligencia', 'Adaptabilidad', 'Social']
+    vals_a    = [da['nivel_energia'], da['inteligencia'], da['adaptabilidad'], da['social_humanos']]
+    vals_b    = [db_row['nivel_energia'], db_row['inteligencia'], db_row['adaptabilidad'], db_row['social_humanos']]
 
-    if not da.empty and not db_row.empty:
-        da     = da.iloc[0]
-        db_row = db_row.iloc[0]
+    col1, col2 = st.columns(2)
+    with col1:
+        fig = go.Figure()
+        fig.add_trace(go.Bar(name=s3_raza_a, x=atributos, y=vals_a, marker_color='#636EFA'))
+        fig.add_trace(go.Bar(name=s3_raza_b, x=atributos, y=vals_b, marker_color='#EF553B'))
+        fig.update_layout(barmode='group', title=f"{s3_raza_a} vs {s3_raza_b}", yaxis=dict(range=[0, 5]))
+        st.plotly_chart(fig, use_container_width=True)
+    with col2:
+        fig = go.Figure()
+        fig.add_trace(go.Scatterpolar(r=vals_a + [vals_a[0]], theta=atributos + [atributos[0]],
+                                      fill='toself', name=s3_raza_a, line_color='#636EFA'))
+        fig.add_trace(go.Scatterpolar(r=vals_b + [vals_b[0]], theta=atributos + [atributos[0]],
+                                      fill='toself', name=s3_raza_b, line_color='#EF553B'))
+        fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 5])),
+                          title=f"Radar: {s3_raza_a} vs {s3_raza_b}")
+        st.plotly_chart(fig, use_container_width=True)
 
-        atributos = ['Energía', 'Inteligencia', 'Adaptabilidad', 'Social']
-        vals_a    = [da['nivel_energia'], da['inteligencia'], da['adaptabilidad'], da['social_humanos']]
-        vals_b    = [db_row['nivel_energia'], db_row['inteligencia'], db_row['adaptabilidad'], db_row['social_humanos']]
-
-        col1, col2 = st.columns(2)
-        with col1:
-            fig = go.Figure()
-            fig.add_trace(go.Bar(name=s3_raza_a, x=atributos, y=vals_a, marker_color='#636EFA'))
-            fig.add_trace(go.Bar(name=s3_raza_b, x=atributos, y=vals_b, marker_color='#EF553B'))
-            fig.update_layout(barmode='group', title=f"{s3_raza_a} vs {s3_raza_b}", yaxis=dict(range=[0, 5]))
-            st.plotly_chart(fig, use_container_width=True)
-
-        with col2:
-            fig = go.Figure()
-            fig.add_trace(go.Scatterpolar(
-                r=vals_a + [vals_a[0]], theta=atributos + [atributos[0]],
-                fill='toself', name=s3_raza_a, line_color='#636EFA'
-            ))
-            fig.add_trace(go.Scatterpolar(
-                r=vals_b + [vals_b[0]], theta=atributos + [atributos[0]],
-                fill='toself', name=s3_raza_b, line_color='#EF553B'
-            ))
-            fig.update_layout(
-                polar=dict(radialaxis=dict(visible=True, range=[0, 5])),
-                title=f"Radar: {s3_raza_a} vs {s3_raza_b}"
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-        # Tabla comparativa
-        st.markdown("##### 📋 Resumen Comparativo")
-        comp = pd.DataFrame({
-            'Atributo':   ['Energía', 'Inteligencia', 'Adaptabilidad', 'Social', 'Longevidad (años)', 'Peso (kg)'],
-            s3_raza_a:    [da['nivel_energia'], da['inteligencia'], da['adaptabilidad'], da['social_humanos'], da['vida_anos'], da['peso_kg']],
-            s3_raza_b:    [db_row['nivel_energia'], db_row['inteligencia'], db_row['adaptabilidad'], db_row['social_humanos'], db_row['vida_anos'], db_row['peso_kg']],
-        })
-        st.dataframe(comp, use_container_width=True, hide_index=True)
+    comp = pd.DataFrame({
+        'Atributo': ['Energía', 'Inteligencia', 'Adaptabilidad', 'Social', 'Longevidad (años)', 'Peso (kg)'],
+        s3_raza_a:  [da['nivel_energia'], da['inteligencia'], da['adaptabilidad'], da['social_humanos'], da['vida_anos'], da['peso_kg']],
+        s3_raza_b:  [db_row['nivel_energia'], db_row['inteligencia'], db_row['adaptabilidad'], db_row['social_humanos'], db_row['vida_anos'], db_row['peso_kg']],
+    })
+    st.dataframe(comp, use_container_width=True, hide_index=True)
 
 st.markdown("---")
 
@@ -259,8 +234,7 @@ st.markdown("---")
 # SECCIÓN 4: Distribución por origen
 # ════════════════════════════════════════════════════════════
 st.markdown("### 🌍 Distribución por País de Origen")
-
-with st.expander("🔧 Filtros — Origen", expanded=True):
+with st.expander("🔧 Filtros", expanded=True):
     fo1, fo2 = st.columns(2)
     with fo1:
         s4_energia = st.slider("⚡ Energía:", 1, 5, (1, 5), key="s4_energia")
@@ -277,7 +251,6 @@ if df_s4_razas.empty:
     st.warning("⚠️ Sin resultados para estos filtros.")
 else:
     col1, col2 = st.columns(2)
-
     with col1:
         conteo_razas = df_s4_razas['origen'].value_counts().reset_index()
         conteo_razas.columns = ['origen', 'cantidad']
@@ -285,12 +258,10 @@ else:
         otros = conteo_razas.iloc[8:]['cantidad'].sum()
         if otros > 0:
             top8 = pd.concat([top8, pd.DataFrame([{'origen': 'Otros', 'cantidad': otros}])], ignore_index=True)
-        fig = px.pie(top8, names='origen', values='cantidad',
-                     title="Razas por País de Origen",
+        fig = px.pie(top8, names='origen', values='cantidad', title="Razas por País de Origen",
                      color_discrete_sequence=px.colors.qualitative.Set3)
         fig.update_traces(textposition='inside', textinfo='percent+label')
         st.plotly_chart(fig, use_container_width=True)
-
     with col2:
         conteo_imgs = df_s4.groupby('origen')['imagen_id'].count().reset_index()
         conteo_imgs.columns = ['origen', 'cantidad']
@@ -299,8 +270,7 @@ else:
         otros_imgs = conteo_imgs.iloc[8:]['cantidad'].sum()
         if otros_imgs > 0:
             top8_imgs = pd.concat([top8_imgs, pd.DataFrame([{'origen': 'Otros', 'cantidad': otros_imgs}])], ignore_index=True)
-        fig = px.pie(top8_imgs, names='origen', values='cantidad',
-                     title="Imágenes por País de Origen",
+        fig = px.pie(top8_imgs, names='origen', values='cantidad', title="Imágenes por País de Origen",
                      color_discrete_sequence=px.colors.qualitative.Pastel)
         fig.update_traces(textposition='inside', textinfo='percent+label')
         st.plotly_chart(fig, use_container_width=True)
@@ -308,60 +278,40 @@ else:
 st.markdown("---")
 
 # ════════════════════════════════════════════════════════════
-# SECCIÓN 5: Tabla completa
+# SECCIÓN 5: Galería de imágenes por raza
 # ════════════════════════════════════════════════════════════
-st.markdown("### 📋 Tabla Completa de Datos")
+st.markdown("### 🖼️ Galería de Imágenes por Raza")
 
-with st.expander("🔧 Filtros — Tabla", expanded=True):
-    ft1, ft2, ft3, ft4 = st.columns(4)
-    with ft1:
-        s5_razas = st.multiselect("🐱 Razas:", options=razas_opts, default=[], key="s5_razas", placeholder="Todas...")
-    with ft2:
-        s5_energia = st.slider("⚡ Energía:", 1, 5, (1, 5), key="s5_energia")
-    with ft3:
-        s5_inteligencia = st.slider("🧠 Inteligencia:", 1, 5, (1, 5), key="s5_inteligencia")
-    with ft4:
-        s5_social = st.slider("🤝 Social:", 1, 5, (1, 5), key="s5_social")
+with st.expander("🔧 Filtros", expanded=True):
+    fg1, fg2, fg3 = st.columns(3)
+    with fg1:
+        s5_raza = st.selectbox("🐱 Selecciona una raza:", options=razas_opts, key="s5_raza")
+    with fg2:
+        s5_cols = st.slider("Columnas:", 2, 5, 3, key="s5_cols")
+    with fg3:
+        s5_limit = st.slider("Máximo de imágenes:", 6, 50, 12, key="s5_limit")
 
-df_s5 = df_raw.copy()
-if s5_razas:
-    df_s5 = df_s5[df_s5['nombre_raza'].isin(s5_razas)]
-df_s5 = df_s5[
-    df_s5['nivel_energia'].between(s5_energia[0], s5_energia[1]) &
-    df_s5['inteligencia'].between(s5_inteligencia[0], s5_inteligencia[1]) &
-    df_s5['social_humanos'].between(s5_social[0], s5_social[1])
-]
+df_galeria = df_raw[df_raw['nombre_raza'] == s5_raza][['url', 'imagen_id']].dropna().head(s5_limit)
 
-columnas_disponibles = ['nombre_raza', 'origen', 'vida_anos', 'peso_kg',
-                        'nivel_energia', 'inteligencia', 'adaptabilidad',
-                        'social_humanos', 'temperamento', 'vida_promedio', 'peso_metrico']
+if df_galeria.empty:
+    st.warning("⚠️ No hay imágenes para esta raza.")
+else:
+    # Info de la raza
+    info_raza = df_raw[df_raw['nombre_raza'] == s5_raza].iloc[0]
+    st.markdown(f"""
+    **🐱 {s5_raza}** | 🌍 {info_raza['origen']} | 📅 {info_raza['vida_promedio']} años | 
+    ⚖️ {info_raza['peso_metrico']} kg | ⚡ Energía: {info_raza['nivel_energia']} | 
+    🧠 Inteligencia: {info_raza['inteligencia']}
+    """)
 
-col1, col2 = st.columns(2)
-with col1:
-    mostrar_todos = st.checkbox("Mostrar todos los registros", value=False)
-with col2:
-    columnas_sel = st.multiselect(
-        "Columnas:",
-        options=columnas_disponibles,
-        default=['nombre_raza', 'origen', 'vida_anos', 'peso_kg',
-                 'nivel_energia', 'inteligencia', 'adaptabilidad', 'social_humanos']
-    )
+    st.info(f"Mostrando **{len(df_galeria)}** imágenes de {s5_raza}")
 
-if columnas_sel:
-    df_tabla = df_s5[columnas_sel].drop_duplicates(subset=['nombre_raza']) if 'nombre_raza' in columnas_sel else df_s5[columnas_sel]
-    if 'vida_anos' in columnas_sel:
-        df_tabla = df_tabla.sort_values('vida_anos', ascending=False)
-    st.info(f"📊 **{len(df_tabla)} razas** encontradas")
-    if mostrar_todos:
-        st.dataframe(df_tabla, use_container_width=True, height=600)
-    else:
-        st.dataframe(df_tabla.head(20), use_container_width=True)
+    # Mostrar imágenes en grid
+    urls = df_galeria['url'].tolist()
+    filas = [urls[i:i+s5_cols] for i in range(0, len(urls), s5_cols)]
 
-    st.markdown("---")
-    csv = df_s5[columnas_disponibles].to_csv(index=False)
-    st.download_button(
-        label="⬇️ Descargar datos filtrados como CSV",
-        data=csv,
-        file_name=f"gatos_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-        mime="text/csv"
-    )
+    for fila in filas:
+        cols = st.columns(s5_cols)
+        for idx, url in enumerate(fila):
+            with cols[idx]:
+                st.image(url, use_container_width=True)
