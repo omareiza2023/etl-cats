@@ -13,47 +13,16 @@ from scripts.models import Base, Raza, Imagen, MetricasETL
 
 logger = logging.getLogger(__name__)
 
+# ── URL directa desde .env ────────────────────────────────────
+DATABASE_URL = os.getenv('DATABASE_URL')
+engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_size=5, max_overflow=10, echo=False)
 
-# ── Construcción de URL ──────────────────────────────────────────────────────
-
-def _build_database_url() -> str:
-    """Construye la URL de conexión desde variables de entorno."""
-    database_url = os.getenv('DATABASE_URL')
-    if database_url:
-        return database_url
-
-    host     = os.getenv('DB_HOST',     'localhost')
-    port     = os.getenv('DB_PORT',     '5432')
-    name     = os.getenv('DB_NAME',     'gatos_db')
-    user     = os.getenv('DB_USER',     'postgres')
-    password = os.getenv('DB_PASS',     '')
-
-    return f"postgresql://{user}:{password}@{host}:{port}/{name}"
-
-
-DATABASE_URL = _build_database_url()
-
-# ── Engine y sesión ──────────────────────────────────────────────────────────
-
-engine = create_engine(
-    DATABASE_URL,
-    pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=10,
-    echo=False
-)
-
-SessionLocal = sessionmaker(
-    bind=engine,
-    autocommit=False,
-    autoflush=False
-)
+SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
 
 # ── Funciones de utilidad ────────────────────────────────────────────────────
 
 def crear_tablas():
-    """Crea todas las tablas definidas en models.py si no existen."""
     try:
         Base.metadata.create_all(bind=engine)
         logger.info("✅ Tablas creadas / verificadas correctamente.")
@@ -63,7 +32,6 @@ def crear_tablas():
 
 
 def verificar_conexion() -> bool:
-    """Verifica que la conexión a PostgreSQL esté activa."""
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
@@ -77,9 +45,6 @@ def verificar_conexion() -> bool:
 # ── Funciones UPSERT ─────────────────────────────────────────────────────────
 
 def upsert_raza(session, datos_raza: dict):
-    """
-    Inserta una raza o actualiza sus campos si ya existe (UPSERT por id).
-    """
     try:
         stmt = pg_insert(Raza).values(**datos_raza)
         stmt = stmt.on_conflict_do_update(
@@ -108,9 +73,6 @@ def upsert_raza(session, datos_raza: dict):
 
 
 def upsert_imagen(session, datos_imagen: dict):
-    """
-    Inserta una imagen o actualiza sus campos si ya existe (UPSERT por id).
-    """
     try:
         stmt = pg_insert(Imagen).values(**datos_imagen)
         stmt = stmt.on_conflict_do_update(
@@ -129,10 +91,6 @@ def upsert_imagen(session, datos_imagen: dict):
 
 
 def guardar_datos(lista_datos: list):
-    """
-    Recibe la lista de dicts del loader y ejecuta el UPSERT
-    de razas e imágenes en una sola transacción.
-    """
     if not lista_datos:
         logger.warning("⚠️ No hay datos para guardar.")
         return
@@ -189,10 +147,7 @@ def guardar_datos(lista_datos: list):
 # ── Ejecución directa ────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(levelname)s - %(message)s'
-    )
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     if verificar_conexion():
         crear_tablas()
         print("✅ Base de datos lista.")

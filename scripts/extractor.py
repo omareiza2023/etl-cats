@@ -6,12 +6,9 @@ import pandas as pd
 from datetime import datetime
 from dotenv import load_dotenv
 import logging
-from sqlalchemy import create_engine
 
-# Cargar variables de entorno
 load_dotenv()
 
-# Configurar logging
 if not os.path.exists('logs'):
     os.makedirs('logs')
 
@@ -30,125 +27,89 @@ class CatApiExtractor:
     def __init__(self):
         self.api_key    = os.getenv('CAT_API_KEY')
         self.base_url   = os.getenv('CAT_API_BASE_URL', 'https://api.thecatapi.com/v1')
-        self.limit      = os.getenv('CAT_SEARCH_LIMIT', '10')
         self.endpoint   = os.getenv('CAT_SEARCH_ENDPOINT', '/images/search')
+        self.meta_limit = 2000
+        self.batch_size = 100
 
         if not self.api_key:
-            logger.warning("⚠️ CAT_API_KEY no configurada. Se obtendrán datos públicos con limitaciones.")
+            logger.warning("⚠️ CAT_API_KEY no configurada.")
 
-    def extraer_imagenes(self):
-        """Extrae imágenes de gatos que obligatoriamente tengan información de raza."""
+    def extraer_batch(self, llamada: int) -> list:
         try:
             url     = f"{self.base_url}{self.endpoint}"
-            params  = {
-                'limit':      self.limit,
-                'has_breeds': 1,        # solo imágenes con raza definida
-                'order':      'RANDOM'
-            }
-            headers = {}
-            if self.api_key:
-                headers['x-api-key'] = self.api_key
-
+            params  = {'limit': self.batch_size, 'has_breeds': 1, 'order': 'RANDOM'}
+            headers = {'x-api-key': self.api_key}
             response = requests.get(url, params=params, headers=headers, timeout=10)
             response.raise_for_status()
             data = response.json()
-
-            if not data:
-                logger.error("❌ La API no retornó imágenes.")
-                return None
-
-            logger.info(f"✅ {len(data)} imágenes extraídas correctamente.")
+            logger.info(f"  📡 Llamada {llamada} — {len(data)} imágenes recibidas")
             return data
-
         except Exception as e:
-            logger.error(f"❌ Error extrayendo imágenes: {str(e)}")
-            return None
+            logger.error(f"❌ Error en llamada {llamada}: {str(e)}")
+            return []
 
-    def procesar_respuesta(self, imagen):
-        """
-        Procesa un objeto imagen al formato estructurado para la BD.
-        Separa correctamente imagen_id (id de la foto) y raza_id (id de la raza).
-        """
+    def procesar_respuesta(self, imagen) -> dict | None:
         try:
             breeds = imagen.get('breeds', [])
-            raza   = breeds[0] if breeds else {}
-
+            raza   = breeds[0] if breeds else None
             if not raza:
-                logger.warning(f"⚠️ Imagen {imagen.get('id')} sin raza, se omite.")
                 return None
-
             return {
-                # ── Identificadores separados ─────────────────
-                'imagen_id':        imagen.get('id'),          # id de la foto  (ej: "2b2pFY0-t")
-                'raza_id':          raza.get('id'),            # id de la raza  (ej: "abys")
-
-                # ── Datos de la imagen ────────────────────────
+                'imagen_id':        imagen.get('id'),
+                'raza_id':          raza.get('id'),
                 'url':              imagen.get('url'),
                 'ancho':            imagen.get('width'),
                 'alto':             imagen.get('height'),
-
-                # ── Datos de la raza ──────────────────────────
                 'nombre_raza':      raza.get('name',        'Desconocida'),
                 'origen_raza':      raza.get('origin',      'N/A'),
                 'temperamento':     raza.get('temperament', 'N/A'),
                 'vida_promedio':    raza.get('life_span',   'N/A'),
                 'peso_metrico':     raza.get('weight', {}).get('metric', 'N/A'),
                 'wikipedia_url':    raza.get('wikipedia_url', 'N/A'),
-
-                # ── Atributos numéricos (escala 1-5) ──────────
                 'adaptabilidad':    raza.get('adaptability'),
                 'nivel_energia':    raza.get('energy_level'),
                 'inteligencia':     raza.get('intelligence'),
                 'social_humanos':   raza.get('social_needs'),
-
-                # ── Auditoría ─────────────────────────────────
                 'fecha_extraccion': datetime.now()
             }
-
         except Exception as e:
             logger.error(f"Error procesando imagen: {str(e)}")
             return None
 
-    def guardar_en_postgres(self, df):
-        """Carga el DataFrame en PostgreSQL usando SQLAlchemy."""
-        try:
-            user     = os.getenv('DB_USER')
-            password = os.getenv('DB_PASS')
-            host     = os.getenv('DB_HOST')
-            port     = os.getenv('DB_PORT')
-            db_name  = os.getenv('DB_NAME')
-
-            engine_url = f"postgresql://{user}:{password}@{host}:{port}/{db_name}"
-            engine     = create_engine(engine_url)
-
-            df.to_sql('cats_raw', engine, if_exists='append', index=False)
-            logger.info("🐘 Datos cargados en la tabla 'cats_raw' de PostgreSQL.")
-
-        except Exception as e:
-            logger.error(f"❌ Error guardando en PostgreSQL: {str(e)}")
-
-    def ejecutar_extraccion(self):
-        """Ejecuta el ciclo completo de extracción y procesamiento."""
-        logger.info(f"Iniciando extracción de {self.limit} imágenes de gatos...")
-
-        respuesta = self.extraer_imagenes()
-        if not respuesta:
-            return []
-
+    def ejecutar_extraccion(self) -> list:
+        logger.info(f"🚀 Iniciando extracción de {self.meta_limit} imágenes con raza...")
         datos_procesados = []
-        for imagen in respuesta:
-            dato = self.procesar_respuesta(imagen)
-            if dato:
-                datos_procesados.append(dato)
+        llamada = 0
+        llamadas_vacias = 0
 
-        logger.info(f"✅ {len(datos_procesados)} registros procesados correctamente.")
-        return datos_procesados
+        while len(datos_procesados) < self.meta_limit:
+            batch = self.extraer_batch(llamada)
+
+            if not batch:
+                llamadas_vacias += 1
+                if llamadas_vacias >= 3:
+                    logger.warning("⚠️ 3 llamadas vacías consecutivas, deteniendo.")
+                    break
+                llamada += 1
+                continue
+
+            llamadas_vacias = 0
+            for imagen in batch:
+                dato = self.procesar_respuesta(imagen)
+                if dato:
+                    datos_procesados.append(dato)
+
+            logger.info(f"📦 Acumulados: {len(datos_procesados)} / {self.meta_limit}")
+            llamada += 1
+
+        resultado = datos_procesados[:self.meta_limit]
+        logger.info(f"✅ Extracción completada: {len(resultado)} registros.")
+        return resultado
 
 
 if __name__ == "__main__":
     if not os.path.exists('data'):
         os.makedirs('data')
-
     try:
         extractor = CatApiExtractor()
         datos     = extractor.ejecutar_extraccion()
@@ -157,23 +118,21 @@ if __name__ == "__main__":
             logger.error("No se obtuvieron datos para guardar.")
             exit(1)
 
-        # 1. Guardar como JSON
         with open('data/cats_raw.json', 'w') as f:
             json.dump(datos, f, default=str, indent=2, ensure_ascii=False)
-        logger.info("📁 Datos guardados en data/cats_raw.json")
+        logger.info(f"📁 {len(datos)} registros guardados en data/cats_raw.json")
 
-        # 2. Crear DataFrame
         df = pd.DataFrame(datos)
-
-        # 3. Guardar como CSV
         df.to_csv('data/cats.csv', index=False, encoding='utf-8')
         logger.info("📁 Datos guardados en data/cats.csv")
 
-        # 4. Resumen en consola
         print("\n" + "=" * 60)
-        print("RESUMEN DE EXTRACCIÓN — THE CAT API")
+        print(f"RESUMEN — {len(datos)} registros extraídos con raza")
         print("=" * 60)
-        print(df[['imagen_id', 'raza_id', 'nombre_raza', 'origen_raza', 'nivel_energia']].to_string())
+        print(f"Razas únicas:    {df['raza_id'].nunique()}")
+        print(f"Imágenes únicas: {df['imagen_id'].nunique()}")
+        print("=" * 60)
+        print(df[['imagen_id', 'raza_id', 'nombre_raza', 'nivel_energia']].head(10).to_string())
         print("=" * 60)
 
     except Exception as e:
