@@ -7,8 +7,12 @@ from datetime import datetime
 import sys
 sys.path.insert(0, '.')
 
-from scripts.database import SessionLocal
-from scripts.models import Raza, Imagen
+try:
+    from scripts.database import SessionLocal
+    from scripts.models import Raza, Imagen
+except Exception as e:
+    st.error(f"❌ Error de importación: {e}")
+    st.stop()
 
 st.set_page_config(
     page_title="Dashboard Interactivo Gatos",
@@ -48,6 +52,9 @@ def cargar_datos():
             'wikipedia_url':  raza.wikipedia_url or '',
         } for img, raza in resultados])
         return df
+    except Exception as e:
+        st.error(f"❌ Error cargando datos: {e}")
+        return pd.DataFrame()
     finally:
         session.close()
 
@@ -60,7 +67,6 @@ if df_raw.empty:
 # ── SIDEBAR — Filtros ─────────────────────────────────────────
 st.sidebar.markdown("### 🔧 Filtros")
 
-# Filtro por raza
 razas_disponibles = sorted(df_raw['nombre_raza'].dropna().unique())
 razas_sel = st.sidebar.multiselect(
     "🐱 Raza:",
@@ -69,7 +75,6 @@ razas_sel = st.sidebar.multiselect(
     placeholder="Todas las razas..."
 )
 
-# Filtro por origen
 origenes_disponibles = sorted(df_raw['origen'].dropna().unique())
 origenes_sel = st.sidebar.multiselect(
     "🌍 Origen:",
@@ -80,7 +85,6 @@ origenes_sel = st.sidebar.multiselect(
 
 st.sidebar.markdown("---")
 
-# Sliders numéricos
 energia_min, energia_max = st.sidebar.slider("⚡ Energía (1-5):", 1, 5, (1, 5))
 inteligencia_min, inteligencia_max = st.sidebar.slider("🧠 Inteligencia (1-5):", 1, 5, (1, 5))
 social_min, social_max = st.sidebar.slider("🤝 Social con humanos (1-5):", 1, 5, (1, 5))
@@ -136,7 +140,6 @@ st.markdown("---")
 # ── SECCIÓN 1: Comparativa de razas ───────────────────────────
 st.markdown("### 🔀 Comparativa de Características por Raza")
 
-# Agrupar por raza para comparativas
 df_razas = df.groupby('nombre_raza').agg(
     origen=('origen', 'first'),
     nivel_energia=('nivel_energia', 'mean'),
@@ -150,7 +153,6 @@ df_razas = df.groupby('nombre_raza').agg(
 
 col1, col2 = st.columns(2)
 
-# Energía por raza
 with col1:
     fig = px.bar(
         df_razas.sort_values('nivel_energia', ascending=True),
@@ -164,7 +166,6 @@ with col1:
     fig.update_layout(showlegend=False, yaxis_title=None, height=500)
     st.plotly_chart(fig, use_container_width=True)
 
-# Longevidad por raza
 with col2:
     fig = px.bar(
         df_razas.sort_values('vida_anos', ascending=True),
@@ -180,7 +181,7 @@ with col2:
 
 st.markdown("---")
 
-# ── SECCIÓN 2: Dispersión Energía vs Longevidad ────────────────
+# ── SECCIÓN 2: Dispersión ─────────────────────────────────────
 st.markdown("### 🔵 Energía vs Longevidad vs Peso")
 fig = px.scatter(
     df_razas,
@@ -201,7 +202,7 @@ st.plotly_chart(fig, use_container_width=True)
 
 st.markdown("---")
 
-# ── SECCIÓN 3: Comparador directo de razas ────────────────────
+# ── SECCIÓN 3: Comparador directo ─────────────────────────────
 st.markdown("### ⚖️ Comparador Directo de Razas")
 
 razas_comparar = sorted(df_razas['nombre_raza'].unique())
@@ -212,7 +213,7 @@ with col2:
     raza_b = st.selectbox("Raza B:", options=razas_comparar, index=min(1, len(razas_comparar)-1))
 
 if raza_a and raza_b:
-    da = df_razas[df_razas['nombre_raza'] == raza_a].iloc[0]
+    da     = df_razas[df_razas['nombre_raza'] == raza_a].iloc[0]
     db_row = df_razas[df_razas['nombre_raza'] == raza_b].iloc[0]
 
     atributos = ['Energía', 'Inteligencia', 'Adaptabilidad', 'Social']
@@ -228,14 +229,13 @@ if raza_a and raza_b:
         st.plotly_chart(fig, use_container_width=True)
 
     with col2:
-        categorias = ['Energía', 'Inteligencia', 'Adaptabilidad', 'Social']
         fig = go.Figure()
         fig.add_trace(go.Scatterpolar(
-            r=vals_a + [vals_a[0]], theta=categorias + [categorias[0]],
+            r=vals_a + [vals_a[0]], theta=atributos + [atributos[0]],
             fill='toself', name=raza_a, line_color='#636EFA'
         ))
         fig.add_trace(go.Scatterpolar(
-            r=vals_b + [vals_b[0]], theta=categorias + [categorias[0]],
+            r=vals_b + [vals_b[0]], theta=atributos + [atributos[0]],
             fill='toself', name=raza_b, line_color='#EF553B'
         ))
         fig.update_layout(
@@ -246,41 +246,35 @@ if raza_a and raza_b:
 
 st.markdown("---")
 
-# ── SECCIÓN 4: Pastel por origen ──────────────────────────────
+# ── SECCIÓN 4: Pasteles por origen ────────────────────────────
 st.markdown("### 🌍 Distribución por País de Origen")
 
 col1, col2 = st.columns(2)
 
 with col1:
-    # Pastel por número de razas
     conteo_razas = df_razas['origen'].value_counts().reset_index()
     conteo_razas.columns = ['origen', 'cantidad']
-    top8 = conteo_razas.head(8).copy()
+    top8  = conteo_razas.head(8).copy()
     otros = conteo_razas.iloc[8:]['cantidad'].sum()
     if otros > 0:
         top8 = pd.concat([top8, pd.DataFrame([{'origen': 'Otros', 'cantidad': otros}])], ignore_index=True)
-    fig = px.pie(
-        top8, names='origen', values='cantidad',
-        title="Razas por País de Origen",
-        color_discrete_sequence=px.colors.qualitative.Set3
-    )
+    fig = px.pie(top8, names='origen', values='cantidad',
+                 title="Razas por País de Origen",
+                 color_discrete_sequence=px.colors.qualitative.Set3)
     fig.update_traces(textposition='inside', textinfo='percent+label')
     st.plotly_chart(fig, use_container_width=True)
 
 with col2:
-    # Pastel por número de imágenes
     conteo_imgs = df.groupby('origen')['imagen_id'].count().reset_index()
     conteo_imgs.columns = ['origen', 'cantidad']
     conteo_imgs = conteo_imgs.sort_values('cantidad', ascending=False)
-    top8_imgs = conteo_imgs.head(8).copy()
-    otros_imgs = conteo_imgs.iloc[8:]['cantidad'].sum()
+    top8_imgs   = conteo_imgs.head(8).copy()
+    otros_imgs  = conteo_imgs.iloc[8:]['cantidad'].sum()
     if otros_imgs > 0:
         top8_imgs = pd.concat([top8_imgs, pd.DataFrame([{'origen': 'Otros', 'cantidad': otros_imgs}])], ignore_index=True)
-    fig = px.pie(
-        top8_imgs, names='origen', values='cantidad',
-        title="Imágenes por País de Origen",
-        color_discrete_sequence=px.colors.qualitative.Pastel
-    )
+    fig = px.pie(top8_imgs, names='origen', values='cantidad',
+                 title="Imágenes por País de Origen",
+                 color_discrete_sequence=px.colors.qualitative.Pastel)
     fig.update_traces(textposition='inside', textinfo='percent+label')
     st.plotly_chart(fig, use_container_width=True)
 
@@ -303,12 +297,14 @@ with col2:
                  'nivel_energia', 'inteligencia', 'adaptabilidad', 'social_humanos']
     )
 
-df_tabla = df[columnas_sel].drop_duplicates(subset=['nombre_raza']).sort_values('vida_anos', ascending=False) if 'vida_anos' in columnas_sel else df[columnas_sel].drop_duplicates(subset=['nombre_raza'])
-
-if mostrar_todos:
-    st.dataframe(df_tabla, use_container_width=True, height=600)
-else:
-    st.dataframe(df_tabla.head(20), use_container_width=True)
+if columnas_sel:
+    df_tabla = df[columnas_sel].drop_duplicates(subset=['nombre_raza']) if 'nombre_raza' in columnas_sel else df[columnas_sel]
+    if 'vida_anos' in columnas_sel:
+        df_tabla = df_tabla.sort_values('vida_anos', ascending=False)
+    if mostrar_todos:
+        st.dataframe(df_tabla, use_container_width=True, height=600)
+    else:
+        st.dataframe(df_tabla.head(20), use_container_width=True)
 
 # ── Descarga ──────────────────────────────────────────────────
 st.markdown("---")
