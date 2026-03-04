@@ -3,7 +3,6 @@ import os
 import logging
 from dotenv import load_dotenv
 
-# Cargar variables de entorno PRIMERO
 load_dotenv()
 
 from sqlalchemy import create_engine, text
@@ -13,9 +12,44 @@ from scripts.models import Base, Raza, Imagen, MetricasETL
 
 logger = logging.getLogger(__name__)
 
-# ── URL directa desde .env ────────────────────────────────────
-DATABASE_URL = os.getenv('DATABASE_URL')
-engine = create_engine(DATABASE_URL, pool_pre_ping=True, pool_size=5, max_overflow=10, echo=False)
+
+# ── Construcción de URL ──────────────────────────────────────────────────────
+
+def _build_database_url() -> str:
+    """Lee DATABASE_URL desde Streamlit Secrets o desde .env local."""
+
+    # 1. Intentar desde Streamlit Cloud secrets
+    try:
+        import streamlit as st
+        if "DATABASE_URL" in st.secrets:
+            logger.info("🔐 DATABASE_URL leída desde Streamlit Secrets.")
+            return st.secrets["DATABASE_URL"]
+    except Exception:
+        pass
+
+    # 2. Fallback a variable de entorno local (.env)
+    url = os.getenv('DATABASE_URL')
+    if url:
+        return url
+
+    # 3. Construir desde variables individuales
+    host     = os.getenv('DB_HOST',     'localhost')
+    port     = os.getenv('DB_PORT',     '5432')
+    name     = os.getenv('DB_NAME',     'gatos_db')
+    user     = os.getenv('DB_USER',     'postgres')
+    password = os.getenv('DB_PASS',     '')
+    return f"postgresql://{user}:{password}@{host}:{port}/{name}"
+
+
+DATABASE_URL = _build_database_url()
+
+engine = create_engine(
+    DATABASE_URL,
+    pool_pre_ping=True,
+    pool_size=5,
+    max_overflow=10,
+    echo=False
+)
 
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
