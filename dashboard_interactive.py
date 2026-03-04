@@ -23,6 +23,8 @@ st.set_page_config(
 st.markdown("""
 <style>
     .stDownloadButton button { background-color: #636EFA; color: white; border-radius: 8px; }
+    .carrusel-img { border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+    .raza-info { background: #f0f2f6; padding: 12px 18px; border-radius: 10px; margin-bottom: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -100,24 +102,26 @@ with col5:
 st.markdown("---")
 
 # ════════════════════════════════════════════════════════════
-# SECCIÓN 1: Comparativa de características
+# SECCIÓN 1: Comparativa — filtros: energía, inteligencia, social, peso
 # ════════════════════════════════════════════════════════════
 st.markdown("### 🔀 Comparativa de Características por Raza")
 with st.expander("🔧 Filtros", expanded=True):
-    fc1, fc2, fc3 = st.columns(3)
+    fc1, fc2, fc3, fc4 = st.columns(4)
     with fc1:
-        s1_razas = st.multiselect("🐱 Razas:", options=razas_opts, default=[], key="s1_razas", placeholder="Todas...")
-    with fc2:
-        s1_origen = st.multiselect("🌍 Origen:", options=origen_opts, default=[], key="s1_origen", placeholder="Todos...")
-    with fc3:
         s1_energia = st.slider("⚡ Energía:", 1, 5, (1, 5), key="s1_energia")
+    with fc2:
+        s1_inteligencia = st.slider("🧠 Inteligencia:", 1, 5, (1, 5), key="s1_inteligencia")
+    with fc3:
+        s1_social = st.slider("🤝 Social:", 1, 5, (1, 5), key="s1_social")
+    with fc4:
+        s1_peso = st.slider("⚖️ Peso (kg):", peso_min_g, peso_max_g, (peso_min_g, peso_max_g), key="s1_peso")
 
-df_s1 = df_raw.copy()
-if s1_razas:
-    df_s1 = df_s1[df_s1['nombre_raza'].isin(s1_razas)]
-if s1_origen:
-    df_s1 = df_s1[df_s1['origen'].isin(s1_origen)]
-df_s1 = df_s1[df_s1['nivel_energia'].between(s1_energia[0], s1_energia[1])]
+df_s1 = df_raw[
+    df_raw['nivel_energia'].between(s1_energia[0], s1_energia[1]) &
+    df_raw['inteligencia'].between(s1_inteligencia[0], s1_inteligencia[1]) &
+    df_raw['social_humanos'].between(s1_social[0], s1_social[1]) &
+    df_raw['peso_kg'].between(s1_peso[0], s1_peso[1])
+]
 df_s1_razas = agrupar_por_raza(df_s1)
 
 if df_s1_razas.empty:
@@ -278,40 +282,57 @@ else:
 st.markdown("---")
 
 # ════════════════════════════════════════════════════════════
-# SECCIÓN 5: Galería de imágenes por raza
+# SECCIÓN 5: Galería carrusel por raza
 # ════════════════════════════════════════════════════════════
 st.markdown("### 🖼️ Galería de Imágenes por Raza")
 
-with st.expander("🔧 Filtros", expanded=True):
-    fg1, fg2, fg3 = st.columns(3)
-    with fg1:
-        s5_raza = st.selectbox("🐱 Selecciona una raza:", options=razas_opts, key="s5_raza")
-    with fg2:
-        s5_cols = st.slider("Columnas:", 2, 5, 3, key="s5_cols")
-    with fg3:
-        s5_limit = st.slider("Máximo de imágenes:", 6, 50, 12, key="s5_limit")
+s5_raza = st.selectbox("🐱 Selecciona una raza:", options=razas_opts, key="s5_raza")
 
-df_galeria = df_raw[df_raw['nombre_raza'] == s5_raza][['url', 'imagen_id']].dropna().head(s5_limit)
+df_galeria = df_raw[df_raw['nombre_raza'] == s5_raza][['url', 'imagen_id']].dropna()
+urls = df_galeria['url'].tolist()
 
-if df_galeria.empty:
+if not urls:
     st.warning("⚠️ No hay imágenes para esta raza.")
 else:
-    # Info de la raza
     info_raza = df_raw[df_raw['nombre_raza'] == s5_raza].iloc[0]
     st.markdown(f"""
-    **🐱 {s5_raza}** | 🌍 {info_raza['origen']} | 📅 {info_raza['vida_promedio']} años | 
-    ⚖️ {info_raza['peso_metrico']} kg | ⚡ Energía: {info_raza['nivel_energia']} | 
-    🧠 Inteligencia: {info_raza['inteligencia']}
-    """)
+    <div class="raza-info">
+    🐱 <b>{s5_raza}</b> &nbsp;|&nbsp; 🌍 {info_raza['origen']} &nbsp;|&nbsp;
+    📅 {info_raza['vida_promedio']} años &nbsp;|&nbsp; ⚖️ {info_raza['peso_metrico']} kg &nbsp;|&nbsp;
+    ⚡ Energía: {info_raza['nivel_energia']} &nbsp;|&nbsp; 🧠 Inteligencia: {info_raza['inteligencia']}
+    </div>
+    """, unsafe_allow_html=True)
 
-    st.info(f"Mostrando **{len(df_galeria)}** imágenes de {s5_raza}")
+    # ── Carrusel con session_state ────────────────────────────
+    key_idx = f"carrusel_{s5_raza}"
+    if key_idx not in st.session_state:
+        st.session_state[key_idx] = 0
 
-    # Mostrar imágenes en grid
-    urls = df_galeria['url'].tolist()
-    filas = [urls[i:i+s5_cols] for i in range(0, len(urls), s5_cols)]
+    idx = st.session_state[key_idx]
+    total = len(urls)
 
-    for fila in filas:
-        cols = st.columns(s5_cols)
-        for idx, url in enumerate(fila):
-            with cols[idx]:
-                st.image(url, use_container_width=True)
+    # Imagen actual centrada
+    col_prev, col_img, col_next = st.columns([1, 6, 1])
+
+    with col_prev:
+        st.markdown("<br><br><br>", unsafe_allow_html=True)
+        if st.button("◀", key="prev", use_container_width=True):
+            st.session_state[key_idx] = (idx - 1) % total
+
+    with col_img:
+        st.image(urls[idx], use_container_width=True)
+        st.markdown(f"<p style='text-align:center; color:gray;'>📷 {idx + 1} / {total}</p>", unsafe_allow_html=True)
+
+    with col_next:
+        st.markdown("<br><br><br>", unsafe_allow_html=True)
+        if st.button("▶", key="next", use_container_width=True):
+            st.session_state[key_idx] = (idx + 1) % total
+
+    # Miniaturas navegables
+    st.markdown("##### Miniaturas")
+    thumb_cols = st.columns(min(10, total))
+    for i, col in enumerate(thumb_cols):
+        if i < total:
+            with col:
+                if st.button(f"{i+1}", key=f"thumb_{i}", use_container_width=True):
+                    st.session_state[key_idx] = i
