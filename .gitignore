@@ -21,3 +21,4 @@ logs/
 .idea/
 *.swp.venv/
 .streamlit/secrets.toml
+.venv/
