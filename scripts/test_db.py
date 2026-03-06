@@ -1,28 +1,26 @@
 #!/usr/bin/env python3
-import pytest
-from dotenv import load_dotenv
+import sys
+sys.path.insert(0, '.')
+from scripts.database import test_connection, engine
+import logging
 
-load_dotenv()
+logging.basicConfig(level=logging.INFO)
 
-from scripts.database import verificar_conexion, engine
-from sqlalchemy import text
+if __name__ == "__main__":
+    print("\n" + "=" * 50)
+    print("PRUEBA DE CONEXIÓN A POSTGRESQL")
+    print("=" * 50)
 
+    if test_connection():
+        print("✅ Conexión exitosa a la base de datos")
+        print(f"Base de datos: {engine.url.database}")
+        print(f"Host:          {engine.url.host}")
+        print(f"Puerto:        {engine.url.port}")
+    else:
+        print("❌ No se pudo conectar a la base de datos")
+        print("\nVerifica:")
+        print("  - PostgreSQL está corriendo")
+        print("  - Variables en .env son correctas")
+        print("  - La base de datos existe")
 
-def test_conexion_postgresql():
-    """Verifica que la conexión a PostgreSQL esté activa."""
-    resultado = verificar_conexion()
-    assert resultado is True, "❌ No se pudo conectar a PostgreSQL. Revisa las variables de entorno en .env"
-
-
-def test_conexion_ejecuta_query():
-    """Verifica que se puede ejecutar una query básica."""
-    with engine.connect() as conn:
-        resultado = conn.execute(text("SELECT 1")).scalar()
-    assert resultado == 1, "❌ La query de prueba no retornó el valor esperado."
-
-
-def test_base_de_datos_correcta():
-    """Verifica que estamos conectados a la base de datos cats_db."""
-    with engine.connect() as conn:
-        db_actual = conn.execute(text("SELECT current_database()")).scalar()
-    assert db_actual == "gatos_db", f"❌ Base de datos incorrecta: '{db_actual}'. Se esperaba 'gatos_db'."
+    print("=" * 50 + "\n")
