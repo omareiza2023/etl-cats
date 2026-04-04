@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 import os
-from dotenv import load_dotenv
-from sqlalchemy import create_engine, MetaData, text
-from sqlalchemy.orm import sessionmaker, declarative_base
 import logging
+from dotenv import load_dotenv
 
 load_dotenv()
+
+from sqlalchemy import create_engine, MetaData, text
+from sqlalchemy.orm import sessionmaker, declarative_base
 
 logger = logging.getLogger(__name__)
 
@@ -17,23 +18,17 @@ DB_PASSWORD = os.getenv('DB_PASSWORD')
 DB_NAME     = os.getenv('DB_NAME')
 
 # ── URL de conexión ───────────────────────────────────────────
-# Prioridad: Streamlit Secrets → DATABASE_URL en .env → variables individuales
-def _build_url() -> str:
-    try:
-        import streamlit as st
-        if "DATABASE_URL" in st.secrets:
-            logger.info("🔐 DATABASE_URL leída desde Streamlit Secrets.")
-            return st.secrets["DATABASE_URL"]
-    except Exception:
-        pass
+DATABASE_URL = os.getenv('DATABASE_URL') or \
+    f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
-    url = os.getenv('DATABASE_URL')
-    if url:
-        return url
-
-    return f"postgresql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-
-DATABASE_URL = _build_url()
+# Streamlit Secrets (solo si corre en Streamlit Cloud)
+try:
+    import streamlit as st
+    if hasattr(st, 'secrets') and "DATABASE_URL" in st.secrets:
+        DATABASE_URL = st.secrets["DATABASE_URL"]
+        logger.info("🔐 DATABASE_URL leída desde Streamlit Secrets.")
+except Exception:
+    pass
 
 # ── Motor SQLAlchemy ──────────────────────────────────────────
 engine = create_engine(DATABASE_URL, echo=False)
