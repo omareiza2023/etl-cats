@@ -22,3 +22,9 @@ logs/
 *.swp.venv/
 .streamlit/secrets.toml
 .venv/
+
+# Nuevas exclusiones
+.ipynb_checkpoints/
+.devcontainer/
+alembic.ini
+optimizador.py
